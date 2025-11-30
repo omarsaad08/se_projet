@@ -52,10 +52,12 @@ class Home extends StatefulWidget {
 class _HomeState extends State<Home> {
   String _selectedSeason = 'Winter';
   late int _selectedYear;
+  
   Map<int, double> _ndviData = {};
   Map<int, double> _eviData = {};
   Map<int, double> _ndwiData = {};
   Map<int, double> _tempData = {};
+  
   bool _isLoading = false;
   bool _isLoadingNdvi = false;
   bool _showNdviColors = false;
@@ -225,7 +227,6 @@ class _HomeState extends State<Home> {
       });
     }
   }
-
   Color _getColorForNdvi(double? ndviValue) {
     if (ndviValue == null) {
       return Colors.grey.withOpacity(0.5);
@@ -485,6 +486,7 @@ class _HomeState extends State<Home> {
                         setState(() {
                           _selectedSeason = v;
                           _showNdviColors = false;
+                          _currentFeature = null;
                         });
                       },
                     ),
@@ -560,6 +562,11 @@ class _HomeState extends State<Home> {
                         setState(() {
                           _selectedYear = v.round();
                           _currentFeature = null;
+                          // Clear all data when year changes
+                          _ndviData = {};
+                          _eviData = {};
+                          _ndwiData = {};
+                          _tempData = {};
                         });
                       },
                     ),
@@ -642,6 +649,7 @@ class _HomeState extends State<Home> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
 
                   if (!_polygonsLoaded) ...[
                     const SizedBox(height: 12),
