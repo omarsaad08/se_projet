@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 
 import 'package:se_project/appRouter.dart';
+import 'package:se_project/helpers/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +38,7 @@ class _AppViewState extends State<AppView> {
       debugShowCheckedModeBanner: false,
       navigatorKey: _navigatorKey,
       title: 'SE Project',
-
+      theme: AppTheme.getDarkTheme(),
       onGenerateRoute: widget.appRouter.generateRoute,
       initialRoute: 'home',
     );

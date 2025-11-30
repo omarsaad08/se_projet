@@ -10,12 +10,13 @@ class NdviServices {
   static Future<List<dynamic>?> getAverageNdvi(
     int year,
     String season,
-    int area_id,
-  ) async {
+    int area_id, {
+    String feature = 'ndvi',
+  }) async {
     try {
-      print("area_id: $area_id, season: $season, year: $year");
+      print("area_id: $area_id, season: $season, year: $year, feature: $feature");
       final url =
-          "$_baseUrl/api/ndvi?year=$year&season=${season.toLowerCase()}";
+          "$_baseUrl/api/ndvi?year=$year&season=${season.toLowerCase()}&feature=$feature";
       print("Requesting: $url");
 
       var response = await dio.get(
