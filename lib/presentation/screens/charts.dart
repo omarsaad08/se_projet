@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:se_project/presentation/components/navbar.dart';
+import 'package:se_project/presentation/screens/charts_page.dart';
 
 class Charts extends StatelessWidget {
   const Charts({super.key});
@@ -8,7 +9,7 @@ class Charts extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const NavBar(currentRoute: 'charts'),
-      body: Column(),
+      body: const ChartsPage(),
     );
   }
 }

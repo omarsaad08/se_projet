@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 
 /// Centralized theme configuration for easy modification
 class AppTheme {
-  // Primary Colors
+  // Primary Colors (Blue Theme)
+  static const Color primaryBlue = Color(0xFF1E88E5);
+  static const Color primaryBlueDark = Color(0xFF1565C0);
+  static const Color primaryBlueLighter = Color(0xFF42A5F5);
+
+  // Secondary Colors (Green Theme for NDVI)
   static const Color primaryGreen = Color(0xFF2E8B57);
   static const Color primaryGreenDark = Color(0xFF1F5C3F);
   static const Color primaryGreenLight = Color(0xFF3DA566);
@@ -25,18 +30,18 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      primaryColor: primaryGreen,
+      primaryColor: primaryBlue,
       scaffoldBackgroundColor: darkBg,
       appBarTheme: AppBarTheme(
-        backgroundColor: primaryGreen,
+        backgroundColor: primaryBlue,
         foregroundColor: Colors.white,
         elevation: 2,
         centerTitle: true,
       ),
       colorScheme: const ColorScheme.dark(
-        primary: primaryGreen,
-        secondary: primaryGreenLight,
-        tertiary: primaryGreenDark,
+        primary: primaryBlue,
+        secondary: primaryBlueLighter,
+        tertiary: primaryBlueDark,
         surface: darkBgSecondary,
         background: darkBg,
         error: error,
@@ -57,7 +62,7 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryGreen),
+          borderSide: const BorderSide(color: primaryBlue),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -65,7 +70,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: primaryGreen, width: 2),
+          borderSide: const BorderSide(color: primaryBlue, width: 2),
         ),
         labelStyle: const TextStyle(color: darkTextSecondary),
         hintStyle: const TextStyle(color: darkTextSecondary),
@@ -106,7 +111,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryGreen,
+          backgroundColor: primaryBlue,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
@@ -116,8 +121,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: primaryGreen,
-          side: const BorderSide(color: primaryGreen),
+          foregroundColor: primaryBlue,
+          side: const BorderSide(color: primaryBlue),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -126,7 +131,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: primaryGreen,
+          foregroundColor: primaryBlue,
         ),
       ),
       dropdownMenuTheme: DropdownMenuThemeData(

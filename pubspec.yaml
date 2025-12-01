@@ -8,6 +8,7 @@ environment:
 
 dependencies:
   dio: ^5.9.0
+  fl_chart: ^1.1.1
   flutter:
     sdk: flutter
   flutter_map: ^8.2.2

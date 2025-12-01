@@ -66,7 +66,7 @@ class _HomeState extends State<Home> {
   bool _polygonsLoaded = false;
 
   final int _minYear = 1983;
-  final int _maxYear = 2025;
+  final int _maxYear = 2050;
 
   final Map<String, int> _protectedAreaToId = {
     "محمية الجلف الكبير": 20,
@@ -157,6 +157,19 @@ class _HomeState extends State<Home> {
     setState(() {
       _isLoading = true;
     });
+
+    if (_selectedYear >= 2025) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Note: Showing predicted data. Actual data not available.',
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.purple,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
 
     try {
       final data = await NdviServices.getAverageNdvi(
@@ -429,12 +442,12 @@ class _HomeState extends State<Home> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppTheme.primaryGreen.withOpacity(0.2),
+                          color: AppTheme.primaryBlue.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: const Icon(
                           Icons.tune,
-                          color: AppTheme.primaryGreen,
+                          color: AppTheme.primaryBlue,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -502,7 +515,7 @@ class _HomeState extends State<Home> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryGreen.withOpacity(0.08),
+                      color: AppTheme.primaryBlue.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -521,7 +534,7 @@ class _HomeState extends State<Home> {
                             vertical: 6,
                           ),
                           decoration: const BoxDecoration(
-                            color: AppTheme.primaryGreen,
+                            color: AppTheme.primaryBlue,
                             borderRadius: BorderRadius.all(Radius.circular(8)),
                           ),
                           child: Text(
@@ -547,10 +560,10 @@ class _HomeState extends State<Home> {
                   SliderTheme(
                     data: SliderThemeData(
                       trackHeight: 6,
-                      activeTrackColor: AppTheme.primaryGreen,
+                      activeTrackColor: AppTheme.primaryBlue,
                       inactiveTrackColor: Colors.grey.shade700,
-                      thumbColor: AppTheme.primaryGreen,
-                      overlayColor: AppTheme.primaryGreen.withOpacity(0.2),
+                      thumbColor: AppTheme.primaryBlue,
+                      overlayColor: AppTheme.primaryBlue.withOpacity(0.2),
                     ),
                     child: Slider(
                       min: _minYear.toDouble(),
@@ -583,7 +596,7 @@ class _HomeState extends State<Home> {
                             child: _buildFeatureButton(
                               feature: 'ndvi',
                               label: 'NDVI',
-                              color: AppTheme.primaryGreen,
+                              color: AppTheme.primaryBlue,
                               icon: Icons.eco,
                             ),
                           ),
@@ -719,8 +732,8 @@ class _HomeState extends State<Home> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppTheme.primaryGreen,
-                            AppTheme.primaryGreenDark,
+                            AppTheme.primaryBlue,
+                            AppTheme.primaryBlueDark,
                           ],
                         ),
                       ),
