@@ -596,7 +596,7 @@ class _HomeState extends State<Home> {
                             child: _buildFeatureButton(
                               feature: 'ndvi',
                               label: 'NDVI',
-                              color: AppTheme.primaryBlue,
+                              color: AppTheme.primaryGreen,
                               icon: Icons.eco,
                             ),
                           ),

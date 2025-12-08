@@ -4,7 +4,8 @@ import 'dart:convert';
 Dio dio = Dio();
 
 class ChartsServices {
-  static const String _baseUrl = "https://49b1938e84a5.ngrok-free.app";
+  static const String _baseUrl =
+      "https://driveable-carmel-stalkily.ngrok-free.app";
 
   /// Get all available areas
   static Future<List<int>?> getAllAreas() async {
@@ -37,7 +38,7 @@ class ChartsServices {
   }
 
   /// Get chart data with merged historical and predicted data
-  /// 
+  ///
   /// Parameters:
   /// - startYear: 1984 to 2050
   /// - endYear: 1984 to 2050
@@ -55,7 +56,8 @@ class ChartsServices {
       // Validate parameters
       if (startYear < 1984 || endYear > 2050 || startYear > endYear) {
         throw Exception(
-            'Invalid year range. Years must be between 1984 and 2050');
+          'Invalid year range. Years must be between 1984 and 2050',
+        );
       }
 
       final url =
@@ -127,7 +129,8 @@ class ChartDataResponse {
       metric: json['metric'] ?? 'ndvi',
       data: dataPoints,
       metadata: ChartMetadata.fromJson(
-          json['metadata'] as Map<String, dynamic>? ?? {}),
+        json['metadata'] as Map<String, dynamic>? ?? {},
+      ),
     );
   }
 
@@ -144,8 +147,7 @@ class ChartDataResponse {
     }
 
     yearValues.forEach((year, values) {
-      yearAverages[year] =
-          values.reduce((a, b) => a + b) / values.length;
+      yearAverages[year] = values.reduce((a, b) => a + b) / values.length;
     });
 
     return yearAverages;
@@ -204,24 +206,35 @@ class ChartDataPoint {
       areaId: json['area_id'] ?? 0,
       year: json['year'] ?? 0,
       season: json['season'] ?? 'unknown',
-      value: (json.values
-              .where((v) =>
-                  v is num &&
-                  json.keys.firstWhere((k) => json[k] == v,
-                          orElse: () => '') ==
-                      'ndvi' ||
-                  json.keys.firstWhere((k) => json[k] == v,
-                          orElse: () => '') ==
-                      'evi' ||
-                  json.keys.firstWhere((k) => json[k] == v,
-                          orElse: () => '') ==
-                      'ndwi' ||
-                  json.keys.firstWhere((k) => json[k] == v,
-                          orElse: () => '') ==
-                      'temp')
-              .firstOrNull ??
-          0.0)
-          .toDouble(),
+      value:
+          (json.values
+                      .where(
+                        (v) =>
+                            v is num &&
+                                json.keys.firstWhere(
+                                      (k) => json[k] == v,
+                                      orElse: () => '',
+                                    ) ==
+                                    'ndvi' ||
+                            json.keys.firstWhere(
+                                  (k) => json[k] == v,
+                                  orElse: () => '',
+                                ) ==
+                                'evi' ||
+                            json.keys.firstWhere(
+                                  (k) => json[k] == v,
+                                  orElse: () => '',
+                                ) ==
+                                'ndwi' ||
+                            json.keys.firstWhere(
+                                  (k) => json[k] == v,
+                                  orElse: () => '',
+                                ) ==
+                                'temp',
+                      )
+                      .firstOrNull ??
+                  0.0)
+              .toDouble(),
       isPrediction: json['is_prediction'] ?? false,
     );
   }
