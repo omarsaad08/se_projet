@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:se_project/data/gee_service.dart';
 import 'package:se_project/presentation/components/pixel_wise_map_widget.dart';
+import 'package:se_project/helpers/app_theme.dart';
 
 class PixelWisePage extends StatefulWidget {
   const PixelWisePage({Key? key}) : super(key: key);
@@ -31,8 +33,19 @@ class _PixelWisePageState extends State<PixelWisePage> {
   // GEE Configuration
   bool isGeeConfigured = false;
 
+  // GEE Map Response
+  GeeMapResponse? geeMapResponse;
+
   // Constants
-  static const List<String> metrics = ['ndvi', 'evi', 'ndwi', 'temp'];
+  static const List<String> metrics = [
+    'ndvi',
+    'evi',
+    'ndwi',
+    'savi',
+    'ndmi',
+    'ndbi',
+    'temp',
+  ];
   static const List<String> seasons = [
     'all',
     'winter',
@@ -50,55 +63,26 @@ class _PixelWisePageState extends State<PixelWisePage> {
   void initState() {
     super.initState();
     _loadGeoJson();
-    _initializeGee();
+    _checkServerHealth();
   }
 
-  Future<void> _initializeGee() async {
+  Future<void> _checkServerHealth() async {
     try {
-      // Initialize GEE with your service account credentials
-      GeeService.initialize(
-        projectId: 'drhaithamproject',
-        serviceAccountEmail:
-            'earthengine-service@drhaithamproject.iam.gserviceaccount.com',
-        privateKey: r'''-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQChlp3JsPgNxS84
-atsewr3W+T7myDGqf/JNL10wfbkFMDzMKY9m5KRxcUYxMrqR3Ax92XRx5MIkOpyP
-V75mFfyWK4/wg+KLN79qpiehJ75OFrsX3s27qtA5JWgVc3tzDcF7jRzl/hnMWXlA
-g3BFlkqq4Yl3b44C6dhVvxpnp6T0qx7qV3GWoAV2IlTAcnJfa5X+fvx6TPmZTfQ8
-QpObjVuvy0UZJBPoLEZq9uImIRoIrmXWueWD/vFMlppZoeIex+oFkL23KfJ56eVr
-1EZcd7IkRhaNX2BLzCW1kKrtxCXIVY4jSwVRr3wtjCm78/PwgSpBBx81/k932RDI
-HKFDDvYTAgMBAAECggEABH3m2NQ+nZCFdHGsjTu1na9tCNiTqW91ynwy7lOmExd9
-ruE1KaXYvKyPNeGdesuCE/U5mTkxoT4LkoTKZYLL9DK1qdQkI6q51tGc4fniEOTt
-S36A1yMFycRP7nS42yT6Y7KhS/MgGy2d1VOfwCCZL8MBYZyjCVKyXyz5I27vObvg
-Y09IvPznzh5u//L5BGy/BtYidjBJByVqNKI9GlH5jV6lQnN7ZveIV2rfbnypiuit
-9Iaarv8RMq2jYsBz58YicBNbsAxFFR4rvakx7PXN8OEBqVmPNeVqSfBLVIR/sMyQ
-Dj9F8yuVBhSGBcxxR9mZjWjE/UIbjQk24l/oqxACPQKBgQDdQtd3tiZslapb2jlI
-mVVznUw+HQrVLptzkd9B2Ke7R0mboiFr6Cs/XfhjZm3vBC5/U6b1iUqHFqP77e7g
-uLD8HsPfSFv38xeyE6rRNYeD5dKwUjYVoHDfKnB7gNMAVTjOe1BUVbQM/KxkbAqi
-wfwpu7tDCNVGrW82HYPYxClNDwKBgQC69Vg97mqmkwH84WjGSfgPOh7gzo3iDNOy
-UCF98nFK8V3e/W915rgk1povGlfVwE4x7FDyvtj2m3zK6USQSYxOI6eX/AtwPTuH
-/fdZfNrV1IZqC50pyJZhBa3LChQ8w7S2gkNkv9MOrheX8E0tNQ9/6YNeyYboz9i0
-6fDaoIHOvQKBgQDIIv3jOs/myDoge3P1Rz0UJuQgCwURb+cM0pWvadnOfN0H+c9h
-W9BCsS1MPAqUeKPWaERNNLJFHyWVa9L3UhhE9U8XWMxXq3tziHaqZlD97ZR2COcD
-CO0P78Nu80fotS19F+3BWwRR+vu0mkXEktMUrMrmB8di9t3xhSENoeH54QKBgQCA
-i9LpejWAZNHYExBcTl2t8pNqlPr/MzyXfPsaQwlcswqNGQp7MXDpe1i2DFHaWYgq
-UUbzMP+yyAQM7EjFQJyk2WURXi5rNN7qyVc6A1vf7GmjHmsoYI/tE9+EHGD/yrxF
-RNmbuz0d+dulD4exDquikmdOVBhbmRVyhuuhFv1JrQKBgAwgt5Mkw6Hbl0VLFkbr
-uLfeJOuf9dO/q0UgSoRp0hx977U2o/Q/AMEgMz/MH7D6xjLyGAffN/O0DcmonyoH
-bU/h87iK2BDFkuFu0K8/EshDH84ifAFnWCmW39ne5BH2+ApXevjSpvWKVFvndPPQ
-OXnekbnUUAR7xhpyttxt/2j+
------END PRIVATE KEY-----''',
-      );
-
+      final isHealthy = await GeeService.checkServerHealth();
       setState(() {
-        isGeeConfigured = true;
+        isGeeConfigured = isHealthy;
       });
-
-      print('GEE initialized successfully!');
+      if (isHealthy) {
+        print('Python GEE server is running!');
+      } else {
+        print(
+          'Python GEE server is not running. Please start it with: python gee_server/server.py',
+        );
+      }
     } catch (e) {
-      print('Error initializing GEE: $e');
+      print('Error checking server health: $e');
       setState(() {
-        errorMessage = 'Error initializing GEE: $e';
+        isGeeConfigured = false;
       });
     }
   }
@@ -128,9 +112,8 @@ OXnekbnUUAR7xhpyttxt/2j+
               properties?['اسم__12'] ??
               properties?['اسم__1'] ??
               'Area ${i + 1}';
-          int areaId = properties?['OBJECTID'] ?? (i + 1);
-
-          areas.add({'id': areaId, 'name': areaName, 'index': i});
+          // Use index as unique identifier since OBJECTID may have duplicates
+          areas.add({'id': i, 'name': areaName, 'index': i});
         }
 
         setState(() {
@@ -153,6 +136,12 @@ OXnekbnUUAR7xhpyttxt/2j+
         return 'EVI (Enhanced Vegetation Index)';
       case 'ndwi':
         return 'NDWI (Water Index)';
+      case 'savi':
+        return 'SAVI (Soil-Adjusted Vegetation)';
+      case 'ndmi':
+        return 'NDMI (Moisture Index)';
+      case 'ndbi':
+        return 'NDBI (Built-up Index)';
       case 'temp':
         return 'Temperature (°C)';
       default:
@@ -244,16 +233,40 @@ OXnekbnUUAR7xhpyttxt/2j+
     setState(() {
       isMapLoading = true;
       errorMessage = null;
-      showOverlay = true;
+      geeMapResponse = null;
     });
 
-    // Simulate loading for demo purposes
-    // In production, this would call GeeService.getMapTiles()
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      // Call GEE service to get map tiles
+      final response = await GeeService.getMapTiles(
+        year: selectedYear,
+        season: selectedSeason,
+        metric: selectedMetric,
+      );
 
-    setState(() {
-      isMapLoading = false;
-    });
+      if (response != null) {
+        setState(() {
+          geeMapResponse = response;
+          showOverlay = true;
+          isMapLoading = false;
+        });
+        print('GEE Map tiles ready: ${response.tileUrlTemplate}');
+      } else {
+        setState(() {
+          errorMessage =
+              'Failed to generate map. Please check GEE configuration.';
+          isMapLoading = false;
+          showOverlay = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        errorMessage = 'Error generating map: $e';
+        isMapLoading = false;
+        showOverlay = false;
+      });
+      print('Error in _generateMap: $e');
+    }
   }
 
   /// Get the bounds of a specific area or all areas
@@ -269,13 +282,8 @@ OXnekbnUUAR7xhpyttxt/2j+
         allPoints.addAll(_extractPointsFromFeature(feature));
       }
     } else {
-      // Get bounds of selected area
-      final areaIndex =
-          availableAreas.firstWhere(
-                (a) => a['id'].toString() == selectedAreaId,
-                orElse: () => {'index': 0},
-              )['index']
-              as int;
+      // Get bounds of selected area - selectedAreaId is now the index
+      final areaIndex = int.tryParse(selectedAreaId) ?? 0;
 
       if (areaIndex < features.length) {
         allPoints = _extractPointsFromFeature(features[areaIndex]);
@@ -309,23 +317,128 @@ OXnekbnUUAR7xhpyttxt/2j+
     if (type == 'Polygon') {
       for (var ring in coordinates) {
         for (var coord in ring) {
-          // Note: GeoJSON is [longitude, latitude]
-          // The file uses EPSG:32635 (UTM zone 35N), we need to convert to WGS84
-          // For now, assuming coordinates are already in WGS84 format
-          points.add(LatLng(coord[1].toDouble(), coord[0].toDouble()));
+          points.add(_parseCoordinate(coord));
         }
       }
     } else if (type == 'MultiPolygon') {
       for (var polygon in coordinates) {
         for (var ring in polygon) {
           for (var coord in ring) {
-            points.add(LatLng(coord[1].toDouble(), coord[0].toDouble()));
+            points.add(_parseCoordinate(coord));
           }
         }
       }
     }
 
     return points;
+  }
+
+  /// Parse a coordinate and convert from UTM to WGS84 if needed
+  LatLng _parseCoordinate(List coord) {
+    double lng = (coord[0] as num).toDouble();
+    double lat = (coord[1] as num).toDouble();
+
+    // Check if coordinates are in UTM format (large numbers)
+    // UTM coordinates are typically in meters, so values > 180 indicate UTM
+    if (lng.abs() > 180 || lat.abs() > 90) {
+      // Convert from UTM Zone 35N (EPSG:32635) to WGS84
+      return _utmToLatLng(lng, lat, 35, true);
+    } else {
+      return LatLng(lat, lng);
+    }
+  }
+
+  /// Convert UTM coordinates to Lat/Lng (WGS84)
+  LatLng _utmToLatLng(
+    double easting,
+    double northing,
+    int zone,
+    bool northern,
+  ) {
+    // WGS84 ellipsoid parameters
+    const double a = 6378137.0; // Semi-major axis
+    const double f = 1 / 298.257223563; // Flattening
+    const double k0 = 0.9996; // Scale factor
+
+    final double e = math.sqrt(2 * f - f * f); // Eccentricity
+    final double e2 = e * e;
+    final double e1 = (1 - math.sqrt(1 - e2)) / (1 + math.sqrt(1 - e2));
+
+    // Remove false easting and northing
+    final double x = easting - 500000.0;
+    double y = northing;
+    if (!northern) {
+      y = y - 10000000.0;
+    }
+
+    // Central meridian
+    final double lonOrigin = (zone - 1) * 6 - 180 + 3;
+
+    final double M = y / k0;
+    final double mu =
+        M / (a * (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256));
+
+    final double phi1 =
+        mu +
+        (3 * e1 / 2 - 27 * e1 * e1 * e1 / 32) * math.sin(2 * mu) +
+        (21 * e1 * e1 / 16 - 55 * e1 * e1 * e1 * e1 / 32) * math.sin(4 * mu) +
+        (151 * e1 * e1 * e1 / 96) * math.sin(6 * mu);
+
+    final double sinPhi1 = math.sin(phi1);
+    final double cosPhi1 = math.cos(phi1);
+    final double tanPhi1 = math.tan(phi1);
+
+    final double N1 = a / math.sqrt(1 - e2 * sinPhi1 * sinPhi1);
+    final double T1 = tanPhi1 * tanPhi1;
+    final double C1 = e2 / (1 - e2) * cosPhi1 * cosPhi1;
+    final double R1 = a * (1 - e2) / math.pow(1 - e2 * sinPhi1 * sinPhi1, 1.5);
+    final double D = x / (N1 * k0);
+
+    double lat =
+        phi1 -
+        (N1 * tanPhi1 / R1) *
+            (D * D / 2 -
+                (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * e2 / (1 - e2)) *
+                    D *
+                    D *
+                    D *
+                    D /
+                    24 +
+                (61 +
+                        90 * T1 +
+                        298 * C1 +
+                        45 * T1 * T1 -
+                        252 * e2 / (1 - e2) -
+                        3 * C1 * C1) *
+                    D *
+                    D *
+                    D *
+                    D *
+                    D *
+                    D /
+                    720);
+
+    double lon =
+        (D -
+            (1 + 2 * T1 + C1) * D * D * D / 6 +
+            (5 -
+                    2 * C1 +
+                    28 * T1 -
+                    3 * C1 * C1 +
+                    8 * e2 / (1 - e2) +
+                    24 * T1 * T1) *
+                D *
+                D *
+                D *
+                D *
+                D /
+                120) /
+        cosPhi1;
+
+    lat = lat * 180 / math.pi;
+    lon = lonOrigin + lon * 180 / math.pi;
+
+    return LatLng(lat, lon);
   }
 
   void _zoomToArea() {
@@ -340,13 +453,41 @@ OXnekbnUUAR7xhpyttxt/2j+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Pixel-Wise Environmental Map'),
+        elevation: 0,
+        actions: [
+          // GEE Status indicator
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isGeeConfigured ? Colors.green : Colors.red,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isGeeConfigured ? 'GEE Connected' : 'GEE Offline',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
       body: Row(
         children: [
           // Left Panel - Filters
           Container(
             width: 320,
             decoration: BoxDecoration(
-              border: Border(right: BorderSide(color: Colors.grey.shade300)),
+              color: AppTheme.darkBgSecondary,
+              border: Border(right: BorderSide(color: AppTheme.darkBgTertiary)),
             ),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
@@ -356,19 +497,36 @@ OXnekbnUUAR7xhpyttxt/2j+
                   // Title
                   Text(
                     'Map Filters',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleLarge?.copyWith(color: AppTheme.darkText),
                   ),
                   const SizedBox(height: 16),
 
                   // Metric Selector
-                  Text('Metric', style: Theme.of(context).textTheme.labelLarge),
+                  Text(
+                    'Metric',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppTheme.darkTextSecondary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
                     value: selectedMetric,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
+                    dropdownColor: AppTheme.darkBgTertiary,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppTheme.darkBgTertiary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppTheme.primaryBlue),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade700),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -392,14 +550,29 @@ OXnekbnUUAR7xhpyttxt/2j+
                   const SizedBox(height: 16),
 
                   // Area Selector
-                  Text('Area', style: Theme.of(context).textTheme.labelLarge),
+                  Text(
+                    'Area',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppTheme.darkTextSecondary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
                     value: selectedAreaId,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
+                    dropdownColor: AppTheme.darkBgTertiary,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppTheme.darkBgTertiary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppTheme.primaryBlue),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade700),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -411,7 +584,7 @@ OXnekbnUUAR7xhpyttxt/2j+
                       ),
                       ...availableAreas.map(
                         (area) => DropdownMenuItem(
-                          value: area['id'].toString(),
+                          value: area['index'].toString(),
                           child: Text(area['name'].toString()),
                         ),
                       ),
@@ -428,14 +601,29 @@ OXnekbnUUAR7xhpyttxt/2j+
                   const SizedBox(height: 16),
 
                   // Season Selector
-                  Text('Season', style: Theme.of(context).textTheme.labelLarge),
+                  Text(
+                    'Season',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppTheme.darkTextSecondary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
                     value: selectedSeason,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
+                    dropdownColor: AppTheme.darkBgTertiary,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppTheme.darkBgTertiary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppTheme.primaryBlue),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade700),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -459,14 +647,29 @@ OXnekbnUUAR7xhpyttxt/2j+
                   const SizedBox(height: 16),
 
                   // Year Selector
-                  Text('Year', style: Theme.of(context).textTheme.labelLarge),
+                  Text(
+                    'Year',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppTheme.darkTextSecondary,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<int>(
                     value: selectedYear,
                     isExpanded: true,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(
+                    dropdownColor: AppTheme.darkBgTertiary,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppTheme.darkBgTertiary,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: AppTheme.primaryBlue),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade700),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 8,
                       ),
@@ -499,13 +702,13 @@ OXnekbnUUAR7xhpyttxt/2j+
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade100,
-                        border: Border.all(color: Colors.red),
-                        borderRadius: BorderRadius.circular(4),
+                        color: AppTheme.error.withOpacity(0.2),
+                        border: Border.all(color: AppTheme.error),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         errorMessage!,
-                        style: TextStyle(color: Colors.red.shade700),
+                        style: TextStyle(color: AppTheme.error),
                       ),
                     ),
                   if (errorMessage != null) const SizedBox(height: 16),
@@ -519,12 +722,20 @@ OXnekbnUUAR7xhpyttxt/2j+
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const Icon(Icons.map),
                       label: Text(isMapLoading ? 'Loading...' : 'Generate Map'),
                       style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryBlue,
+                        foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -537,6 +748,13 @@ OXnekbnUUAR7xhpyttxt/2j+
                       onPressed: _zoomToArea,
                       icon: const Icon(Icons.zoom_in_map),
                       label: const Text('Zoom to Selected Area'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryBlue,
+                        side: BorderSide(color: AppTheme.primaryBlue),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -545,7 +763,9 @@ OXnekbnUUAR7xhpyttxt/2j+
                   if (showOverlay) ...[
                     Text(
                       'Legend',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppTheme.darkText,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     _buildLegend(),
@@ -555,6 +775,10 @@ OXnekbnUUAR7xhpyttxt/2j+
 
                   // Info Card
                   Card(
+                    color: AppTheme.darkBgTertiary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: Column(
@@ -565,24 +789,34 @@ OXnekbnUUAR7xhpyttxt/2j+
                               Icon(
                                 Icons.info_outline,
                                 size: 20,
-                                color: Colors.blue.shade700,
+                                color: AppTheme.primaryBlue,
                               ),
                               const SizedBox(width: 8),
                               Text(
                                 'Current Selection',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade700,
+                                  color: AppTheme.primaryBlue,
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Text('Metric: ${getMetricLabel(selectedMetric)}'),
-                          Text('Season: ${getSeasonLabel(selectedSeason)}'),
-                          Text('Year: $selectedYear'),
                           Text(
-                            'Area: ${selectedAreaId == 'all' ? 'All Areas' : availableAreas.firstWhere((a) => a['id'].toString() == selectedAreaId, orElse: () => {'name': 'Unknown'})['name']}',
+                            'Metric: ${getMetricLabel(selectedMetric)}',
+                            style: TextStyle(color: AppTheme.darkTextSecondary),
+                          ),
+                          Text(
+                            'Season: ${getSeasonLabel(selectedSeason)}',
+                            style: TextStyle(color: AppTheme.darkTextSecondary),
+                          ),
+                          Text(
+                            'Year: $selectedYear',
+                            style: TextStyle(color: AppTheme.darkTextSecondary),
+                          ),
+                          Text(
+                            'Area: ${selectedAreaId == 'all' ? 'All Areas' : availableAreas.firstWhere((a) => a['index'].toString() == selectedAreaId, orElse: () => {'name': 'Unknown'})['name']}',
+                            style: TextStyle(color: AppTheme.darkTextSecondary),
                           ),
                         ],
                       ),
@@ -604,6 +838,7 @@ OXnekbnUUAR7xhpyttxt/2j+
               selectedSeason: selectedSeason,
               showOverlay: showOverlay,
               availableAreas: availableAreas,
+              geeMapResponse: geeMapResponse,
             ),
           ),
         ],
@@ -617,7 +852,7 @@ OXnekbnUUAR7xhpyttxt/2j+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: AppTheme.darkBgTertiary,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -625,7 +860,11 @@ OXnekbnUUAR7xhpyttxt/2j+
         children: [
           Text(
             getMetricLabel(selectedMetric),
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+              color: AppTheme.darkText,
+            ),
           ),
           const SizedBox(height: 8),
           // Gradient bar
@@ -645,11 +884,17 @@ OXnekbnUUAR7xhpyttxt/2j+
             children: [
               Text(
                 legendItems.first.label,
-                style: const TextStyle(fontSize: 10),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppTheme.darkTextSecondary,
+                ),
               ),
               Text(
                 legendItems.last.label,
-                style: const TextStyle(fontSize: 10),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppTheme.darkTextSecondary,
+                ),
               ),
             ],
           ),

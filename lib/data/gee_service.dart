@@ -1,148 +1,149 @@
 import 'package:dio/dio.dart';
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 
-/// Google Earth Engine Service for fetching pixel-wise imagery
-///
-/// This service uses the GEE REST API to generate map tiles
-/// with pixel-wise NDVI, EVI, NDWI, and temperature data
 class GeeService {
   static final Dio _dio = Dio();
+  static const String _serverUrl = 'http://localhost:5000';
 
-  // GEE API Configuration
-  static String? _accessToken;
-  static String? _projectId;
-  static String? _serviceAccountEmail;
-  static String? _privateKey;
-
-  // GEE REST API base URL
-  static const String _geeApiBase = 'https://earthengine.googleapis.com/v1';
-  static const String _tokenUrl = 'https://oauth2.googleapis.com/token';
-
-  /// Initialize the service with service account credentials
-  /// Call this once at app startup with your GEE credentials
-  static void initialize({
-    required String projectId,
-    required String serviceAccountEmail,
-    required String privateKey,
-  }) {
-    _projectId = projectId;
-    _serviceAccountEmail = serviceAccountEmail;
-    _privateKey = privateKey;
-  }
-
-  /// Check if the service is initialized
-  static bool get isInitialized =>
-      _projectId != null && _serviceAccountEmail != null && _privateKey != null;
-
-  /// Generate JWT token for service account authentication
-  static Future<String?> _getAccessToken() async {
-    if (!isInitialized) return null;
-
+  static Future<bool> checkServerHealth() async {
     try {
-      // JWT header
-      final header = {'alg': 'RS256', 'typ': 'JWT'};
-
-      // JWT payload (claims)
-      final now = DateTime.now();
-      final expiry = now.add(const Duration(hours: 1));
-
-      final payload = {
-        'iss': _serviceAccountEmail,
-        'scope': 'https://www.googleapis.com/auth/earthengine',
-        'aud': _tokenUrl,
-        'exp': expiry.millisecondsSinceEpoch ~/ 1000,
-        'iat': now.millisecondsSinceEpoch ~/ 1000,
-      };
-
-      // Encode header and payload
-      final headerEncoded = base64Url
-          .encode(utf8.encode(jsonEncode(header)))
-          .toString()
-          .replaceAll('=', '');
-      final payloadEncoded = base64Url
-          .encode(utf8.encode(jsonEncode(payload)))
-          .toString()
-          .replaceAll('=', '');
-
-      final signingInput = '$headerEncoded.$payloadEncoded';
-
-      // For now, return a placeholder
-      // In production, you would sign this with RS256
-      // For Flutter, consider using a backend endpoint to get tokens
-      print('GEE Service Account: $_serviceAccountEmail');
-      return null;
+      final response = await _dio.get(
+        _serverUrl,
+        options: Options(receiveTimeout: const Duration(seconds: 5)),
+      );
+      return response.statusCode == 200;
     } catch (e) {
-      print('Error generating access token: $e');
-      return null;
+      print('Server health check failed: $e');
+      return false;
     }
   }
 
-  /// Get visualization parameters for different metrics
   static Map<String, dynamic> getVisualizationParams(String metric) {
     switch (metric) {
       case 'ndvi':
+        // NDVI: Brown (bare) -> Green (vegetation)
         return {
           'min': -0.2,
           'max': 0.8,
           'palette': [
-            '#d73027',
-            '#f46d43',
-            '#fdae61',
-            '#fee08b',
-            '#ffffbf',
-            '#d9ef8b',
-            '#a6d96a',
-            '#66bd63',
-            '#1a9850',
+            '#8B4513',
+            '#A0522D',
+            '#CD853F',
+            '#DAA520',
+            '#F0E68C',
+            '#ADFF2F',
+            '#32CD32',
+            '#228B22',
+            '#006400',
+            '#004D00',
           ],
         };
       case 'evi':
+        // EVI: Similar to NDVI
         return {
           'min': -0.2,
           'max': 0.8,
           'palette': [
-            '#d73027',
-            '#f46d43',
-            '#fdae61',
-            '#fee08b',
-            '#ffffbf',
-            '#d9ef8b',
-            '#a6d96a',
-            '#66bd63',
-            '#1a9850',
+            '#8B4513',
+            '#A0522D',
+            '#CD853F',
+            '#DAA520',
+            '#F0E68C',
+            '#9ACD32',
+            '#32CD32',
+            '#228B22',
+            '#006400',
+            '#004D00',
           ],
         };
       case 'ndwi':
+        // NDWI: Brown (dry) -> Blue (water)
+        return {
+          'min': -0.4,
+          'max': 0.4,
+          'palette': [
+            '#AA6600',
+            '#CC8833',
+            '#DDAA66',
+            '#EECCAA',
+            '#F5F5DC',
+            '#BBDDEE',
+            '#66B3FF',
+            '#3399FF',
+            '#0066CC',
+            '#003D99',
+          ],
+        };
+      case 'savi':
+        // SAVI: Soil-Adjusted Vegetation Index - Brown (bare) -> Green (vegetation)
+        return {
+          'min': -0.2,
+          'max': 0.8,
+          'palette': [
+            '#8B4513',
+            '#A0522D',
+            '#CD853F',
+            '#DAA520',
+            '#F0E68C',
+            '#ADFF2F',
+            '#32CD32',
+            '#228B22',
+            '#006400',
+            '#004D00',
+          ],
+        };
+      case 'ndmi':
+        // NDMI: Normalized Difference Moisture Index - Brown (dry) -> Green (moist)
         return {
           'min': -0.5,
-          'max': 0.5,
+          'max': 0.6,
           'palette': [
-            '#8b4513',
-            '#d2691e',
-            '#f4a460',
-            '#fffacd',
-            '#87ceeb',
-            '#4169e1',
-            '#00008b',
+            '#8B4513',
+            '#A0522D',
+            '#CD853F',
+            '#DAA520',
+            '#F0E68C',
+            '#ADFF2F',
+            '#32CD32',
+            '#228B22',
+            '#006400',
+            '#004D00',
+          ],
+        };
+      case 'ndbi':
+        // NDBI: Normalized Difference Built-up Index - Green (vegetation) -> Gray -> Red (built-up)
+        return {
+          'min': -0.4,
+          'max': 0.4,
+          'palette': [
+            '#006400',
+            '#228B22',
+            '#32CD32',
+            '#90EE90',
+            '#D3D3D3',
+            '#A9A9A9',
+            '#FF9966',
+            '#FF6633',
+            '#CC3300',
+            '#8B0000',
           ],
         };
       case 'temp':
+        // Temperature: Blue (cold) -> Red (hot)
         return {
-          'min': 0,
-          'max': 50,
+          'min': 7, // ~280K in Celsius
+          'max': 47, // ~320K in Celsius
           'palette': [
             '#313695',
-            '#4575b4',
-            '#74add1',
-            '#abd9e9',
-            '#e0f3f8',
-            '#ffffbf',
-            '#fee090',
-            '#fdae61',
-            '#f46d43',
-            '#d73027',
-            '#a50026',
+            '#4575B4',
+            '#74ADD1',
+            '#ABD9E9',
+            '#E0F3F8',
+            '#FFFFBF',
+            '#FEE090',
+            '#FDAE61',
+            '#F46D43',
+            '#D73027',
+            '#A50026',
           ],
         };
       default:
@@ -154,216 +155,120 @@ class GeeService {
     }
   }
 
-  /// Get season date range
-  static Map<String, String> getSeasonDateRange(int year, String season) {
-    switch (season) {
-      case 'winter':
-        return {'start': '$year-12-01', 'end': '${year + 1}-02-28'};
-      case 'spring':
-        return {'start': '$year-03-01', 'end': '$year-05-31'};
-      case 'summer':
-        return {'start': '$year-06-01', 'end': '$year-08-31'};
-      case 'autumn':
-        return {'start': '$year-09-01', 'end': '$year-11-30'};
-      case 'all':
-      default:
-        return {'start': '$year-01-01', 'end': '$year-12-31'};
-    }
-  }
-
-  /// Build the Earth Engine expression for the metric
-  static String getMetricExpression(String metric) {
-    switch (metric) {
-      case 'ndvi':
-        return '(NIR - RED) / (NIR + RED)';
-      case 'evi':
-        return '2.5 * ((NIR - RED) / (NIR + 6 * RED - 7.5 * BLUE + 1))';
-      case 'ndwi':
-        return '(GREEN - NIR) / (GREEN + NIR)';
-      case 'temp':
-        return 'ST_B10'; // Surface temperature band
-      default:
-        return '(NIR - RED) / (NIR + RED)';
-    }
-  }
-
-  /// Generate a map tile URL for the given parameters
-  /// This creates a URL template that can be used with flutter_map TileLayer
-  ///
-  /// Returns a tile URL template with {z}/{x}/{y} placeholders
   static Future<GeeMapResponse?> getMapTiles({
     required int year,
     required String season,
     required String metric,
-    required List<List<double>>
-    regionCoordinates, // Polygon coordinates in WGS84
   }) async {
-    if (!isInitialized) {
-      throw Exception('GeeService not initialized. Call initialize() first.');
-    }
-
     try {
-      final dateRange = getSeasonDateRange(year, season);
-      final visParams = getVisualizationParams(metric);
+      print('Requesting $metric for $year ($season) from Python server...');
 
-      // Build the Earth Engine API request
-      // This creates a computation request that generates map tiles
-      final requestBody = _buildComputationRequest(
-        metric: metric,
-        startDate: dateRange['start']!,
-        endDate: dateRange['end']!,
-        visParams: visParams,
-        regionCoordinates: regionCoordinates,
-      );
-
-      final response = await _dio.post(
-        '$_geeApiBase/projects/$_projectId/maps',
-        data: jsonEncode(requestBody),
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $_accessToken',
-            'Content-Type': 'application/json',
-          },
-        ),
+      final response = await _dio.get(
+        '$_serverUrl/compute',
+        queryParameters: {'year': year, 'season': season, 'metric': metric},
+        options: Options(receiveTimeout: const Duration(seconds: 60)),
       );
 
       if (response.statusCode == 200) {
         final data = response.data;
-        return GeeMapResponse(
-          tileUrlTemplate: data['urlFormat'] ?? '',
-          mapName: data['name'] ?? '',
-          attribution: '© Google Earth Engine',
+
+        if (data['success'] == true && data['tileUrl'] != null) {
+          final tileUrl = data['tileUrl'] as String;
+          print('Tile URL received successfully!');
+
+          return GeeMapResponse(
+            tileUrlTemplate: tileUrl,
+            metric: metric,
+            year: year,
+            season: season,
+          );
+        } else {
+          print('Server returned error: ${data['error']}');
+          return null;
+        }
+      }
+
+      print('Server returned status: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      print('Error calling GEE server: $e');
+      if (e is DioException && e.type == DioExceptionType.connectionError) {
+        print(
+          'Make sure the Python server is running: python gee_server/server.py',
         );
+      }
+      return null;
+    }
+  }
+
+  /// Get detailed pixel information at a specific point
+  static Future<PointInfoResponse?> getPointInfo({
+    required double lat,
+    required double lng,
+    required int year,
+    required String season,
+  }) async {
+    try {
+      print('Getting point info at ($lat, $lng) for $year ($season)...');
+
+      final response = await _dio.get(
+        '$_serverUrl/point-info',
+        queryParameters: {
+          'lat': lat,
+          'lng': lng,
+          'year': year,
+          'season': season,
+        },
+        options: Options(receiveTimeout: const Duration(seconds: 30)),
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+
+        if (data['success'] == true) {
+          return PointInfoResponse.fromJson(data);
+        } else {
+          print('Point info error: ${data['error']}');
+          return PointInfoResponse(
+            success: false,
+            errorMessage: data['error'] ?? 'Unknown error',
+            isWithinProtected: data['isWithinProtected'] ?? false,
+          );
+        }
       }
 
       return null;
     } catch (e) {
-      print('Error getting GEE map tiles: $e');
+      print('Error getting point info: $e');
       return null;
     }
   }
-
-  /// Build the computation request body for Earth Engine
-  static Map<String, dynamic> _buildComputationRequest({
-    required String metric,
-    required String startDate,
-    required String endDate,
-    required Map<String, dynamic> visParams,
-    required List<List<double>> regionCoordinates,
-  }) {
-    // Use Landsat 8/9 Collection 2 for vegetation indices
-    // Use MODIS for temperature if needed
-    String collection;
-    String bandMapping;
-
-    if (metric == 'temp') {
-      collection = 'LANDSAT/LC08/C02/T1_L2';
-      bandMapping =
-          '''
-        var image = collection
-          .filterDate('$startDate', '$endDate')
-          .filterBounds(region)
-          .map(function(img) {
-            return img.multiply(0.00341802).add(149.0).subtract(273.15);
-          })
-          .median()
-          .select(['ST_B10'], ['temp']);
-      ''';
-    } else {
-      collection = 'LANDSAT/LC08/C02/T1_L2';
-      bandMapping =
-          '''
-        var image = collection
-          .filterDate('$startDate', '$endDate')
-          .filterBounds(region)
-          .map(function(img) {
-            var nir = img.select('SR_B5').multiply(0.0000275).add(-0.2);
-            var red = img.select('SR_B4').multiply(0.0000275).add(-0.2);
-            var green = img.select('SR_B3').multiply(0.0000275).add(-0.2);
-            var blue = img.select('SR_B2').multiply(0.0000275).add(-0.2);
-            ${_getMetricCalculation(metric)}
-          })
-          .median();
-      ''';
-    }
-
-    return {
-      'expression': {
-        'result': '0',
-        'values': {
-          '0': {
-            'functionInvocationValue': {
-              'functionName': 'Map.addLayer',
-              'arguments': {
-                'eeObject': {
-                  'functionInvocationValue': {
-                    'functionName': 'Image.visualize',
-                    'arguments': {
-                      'image': {'argumentReference': 'computedImage'},
-                      'min': {'constantValue': visParams['min']},
-                      'max': {'constantValue': visParams['max']},
-                      'palette': {'constantValue': visParams['palette']},
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    };
-  }
-
-  static String _getMetricCalculation(String metric) {
-    switch (metric) {
-      case 'ndvi':
-        return 'return nir.subtract(red).divide(nir.add(red)).rename("ndvi");';
-      case 'evi':
-        return '''
-          var evi = nir.subtract(red)
-            .divide(nir.add(red.multiply(6)).subtract(blue.multiply(7.5)).add(1))
-            .multiply(2.5)
-            .rename("evi");
-          return evi;
-        ''';
-      case 'ndwi':
-        return 'return green.subtract(nir).divide(green.add(nir)).rename("ndwi");';
-      default:
-        return 'return nir.subtract(red).divide(nir.add(red)).rename("ndvi");';
-    }
-  }
 }
 
-/// Response from GEE map tile generation
 class GeeMapResponse {
   final String tileUrlTemplate;
-  final String mapName;
-  final String attribution;
+  final String metric;
+  final int year;
+  final String season;
 
   GeeMapResponse({
     required this.tileUrlTemplate,
-    required this.mapName,
-    required this.attribution,
+    required this.metric,
+    required this.year,
+    required this.season,
   });
 }
 
-/// Color mapping utility for creating local NDVI visualization
 class MetricColorMapper {
-  /// Get color for a metric value
   static int getColorForValue(double value, String metric) {
     final params = GeeService.getVisualizationParams(metric);
     final min = (params['min'] as num).toDouble();
     final max = (params['max'] as num).toDouble();
     final palette = params['palette'] as List<String>;
 
-    // Normalize value to 0-1 range
     final normalized = ((value - min) / (max - min)).clamp(0.0, 1.0);
-
-    // Get color index
     final colorIndex = (normalized * (palette.length - 1)).floor();
     final nextIndex = (colorIndex + 1).clamp(0, palette.length - 1);
-
-    // Interpolate between colors
     final t = (normalized * (palette.length - 1)) - colorIndex;
 
     final color1 = _parseHexColor(palette[colorIndex]);
@@ -374,9 +279,7 @@ class MetricColorMapper {
 
   static int _parseHexColor(String hex) {
     hex = hex.replaceFirst('#', '');
-    if (hex.length == 6) {
-      hex = 'FF$hex';
-    }
+    if (hex.length == 6) hex = 'FF$hex';
     return int.parse(hex, radix: 16);
   }
 
@@ -399,7 +302,6 @@ class MetricColorMapper {
     return (a << 24) | (r << 16) | (g << 8) | b;
   }
 
-  /// Get the color palette for legend display
   static List<LegendItem> getLegendItems(String metric) {
     final params = GeeService.getVisualizationParams(metric);
     final min = (params['min'] as num).toDouble();
@@ -427,4 +329,88 @@ class LegendItem {
   final String label;
 
   LegendItem({required this.color, required this.value, required this.label});
+}
+
+/// Response class for point info queries
+class PointInfoResponse {
+  final bool success;
+  final String? errorMessage;
+  final bool isWithinProtected;
+  final double? lat;
+  final double? lng;
+  final Map<String, double?>? metrics;
+  final Map<String, String>? interpretation;
+  final Map<String, dynamic>? metadata;
+
+  PointInfoResponse({
+    required this.success,
+    this.errorMessage,
+    this.isWithinProtected = false,
+    this.lat,
+    this.lng,
+    this.metrics,
+    this.interpretation,
+    this.metadata,
+  });
+
+  factory PointInfoResponse.fromJson(Map<String, dynamic> json) {
+    final coords = json['coordinates'] as Map<String, dynamic>?;
+    final rawMetrics = json['metrics'] as Map<String, dynamic>?;
+    final rawInterpretation = json['interpretation'] as Map<String, dynamic>?;
+
+    // Convert metrics to proper types
+    Map<String, double?>? metrics;
+    if (rawMetrics != null) {
+      metrics = {};
+      rawMetrics.forEach((key, value) {
+        metrics![key] = value != null ? (value as num).toDouble() : null;
+      });
+    }
+
+    // Convert interpretation to String map
+    Map<String, String>? interpretation;
+    if (rawInterpretation != null) {
+      interpretation = {};
+      rawInterpretation.forEach((key, value) {
+        interpretation![key] = value?.toString() ?? 'Unknown';
+      });
+    }
+
+    return PointInfoResponse(
+      success: json['success'] == true,
+      errorMessage: json['error'] as String?,
+      isWithinProtected: json['isWithinProtected'] == true,
+      lat: coords?['lat'] != null ? (coords!['lat'] as num).toDouble() : null,
+      lng: coords?['lng'] != null ? (coords!['lng'] as num).toDouble() : null,
+      metrics: metrics,
+      interpretation: interpretation,
+      metadata: json['metadata'] as Map<String, dynamic>?,
+    );
+  }
+
+  /// Get a formatted string for a metric value
+  String getMetricDisplay(String metricKey) {
+    if (metrics == null || metrics![metricKey] == null) {
+      return 'N/A';
+    }
+    final value = metrics![metricKey]!;
+    if (metricKey == 'temp') {
+      return '${value.toStringAsFixed(1)}°C';
+    }
+    return value.toStringAsFixed(4);
+  }
+
+  /// Get a user-friendly label for a metric
+  static String getMetricLabel(String key) {
+    const labels = {
+      'ndvi': 'NDVI (Vegetation)',
+      'evi': 'EVI (Enhanced Vegetation)',
+      'ndwi': 'NDWI (Water)',
+      'savi': 'SAVI (Soil-Adjusted Veg.)',
+      'ndmi': 'NDMI (Moisture)',
+      'ndbi': 'NDBI (Built-up)',
+      'temp': 'Temperature',
+    };
+    return labels[key] ?? key.toUpperCase();
+  }
 }

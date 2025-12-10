@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
 import 'package:se_project/data/gee_service.dart';
 
 /// A Flutter Map widget with pixel-wise environmental data overlay
@@ -14,6 +19,7 @@ class PixelWiseMapWidget extends StatefulWidget {
   final String selectedSeason;
   final bool showOverlay;
   final List<Map<String, dynamic>> availableAreas;
+  final GeeMapResponse? geeMapResponse;
 
   const PixelWiseMapWidget({
     Key? key,
@@ -25,6 +31,7 @@ class PixelWiseMapWidget extends StatefulWidget {
     required this.selectedSeason,
     required this.showOverlay,
     required this.availableAreas,
+    this.geeMapResponse,
   }) : super(key: key);
 
   @override
@@ -35,39 +42,177 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
   // Default center of Egypt
   static const LatLng egyptCenter = LatLng(26.8206, 30.8025);
 
+  // Key for capturing the map as an image
+  final GlobalKey _mapKey = GlobalKey();
+  bool _isCapturing = false;
+
+  // Pixel info popup state
+  PointInfoResponse? _pixelInfo;
+  bool _isLoadingPixelInfo = false;
+  LatLng? _tappedPoint;
+
+  /// Fetch pixel information when map is tapped
+  Future<void> _onMapTap(TapPosition tapPosition, LatLng point) async {
+    if (!widget.showOverlay) return; // Only when overlay is visible
+
+    setState(() {
+      _isLoadingPixelInfo = true;
+      _tappedPoint = point;
+      _pixelInfo = null;
+    });
+
+    try {
+      final result = await GeeService.getPointInfo(
+        lat: point.latitude,
+        lng: point.longitude,
+        year: widget.selectedYear,
+        season: widget.selectedSeason,
+      );
+
+      if (mounted) {
+        setState(() {
+          _pixelInfo = result;
+          _isLoadingPixelInfo = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching pixel info: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingPixelInfo = false;
+        });
+      }
+    }
+  }
+
+  /// Close the pixel info popup
+  void _closePixelInfo() {
+    setState(() {
+      _pixelInfo = null;
+      _tappedPoint = null;
+    });
+  }
+
+  /// Capture the map as an image and download it
+  Future<void> _captureAndDownloadMap() async {
+    setState(() {
+      _isCapturing = true;
+    });
+
+    try {
+      // Find the RenderRepaintBoundary
+      RenderRepaintBoundary? boundary =
+          _mapKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+
+      if (boundary == null) {
+        _showSnackBar('Error: Could not capture map');
+        return;
+      }
+
+      // Capture the image at higher resolution for better quality
+      ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+
+      if (byteData == null) {
+        _showSnackBar('Error: Could not convert image');
+        return;
+      }
+
+      Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      // Create filename with area, metric, year, season
+      String areaName = widget.selectedAreaId == 'all'
+          ? 'AllAreas'
+          : 'Area_${widget.selectedAreaId}';
+      String filename =
+          '${widget.selectedMetric}_${areaName}_${widget.selectedYear}_${widget.selectedSeason}.png';
+
+      // Download the image (web)
+      final blob = html.Blob([pngBytes], 'image/png');
+      final url = html.Url.createObjectUrlFromBlob(blob);
+      final anchor = html.AnchorElement(href: url)
+        ..setAttribute('download', filename)
+        ..click();
+      html.Url.revokeObjectUrl(url);
+
+      _showSnackBar('Map downloaded as $filename');
+    } catch (e) {
+      print('Error capturing map: $e');
+      _showSnackBar('Error downloading map: $e');
+    } finally {
+      setState(() {
+        _isCapturing = false;
+      });
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        FlutterMap(
-          mapController: widget.mapController,
-          options: MapOptions(
-            initialCenter: egyptCenter,
-            initialZoom: 6.0,
-            minZoom: 3.0,
-            maxZoom: 18.0,
-          ),
-          children: [
-            // Base map layer (OpenStreetMap)
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.example.se_project',
-              maxZoom: 19,
+        RepaintBoundary(
+          key: _mapKey,
+          child: FlutterMap(
+            mapController: widget.mapController,
+            options: MapOptions(
+              initialCenter: egyptCenter,
+              initialZoom: 6.0,
+              minZoom: 3.0,
+              maxZoom: 18.0,
+              onTap: _onMapTap, // Handle map taps for pixel info
             ),
+            children: [
+              // Base map layer (OpenStreetMap)
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.se_project',
+                maxZoom: 19,
+              ),
 
-            // GeoJSON polygon layer for protected areas
-            if (widget.geoJsonData != null)
-              PolygonLayer(polygons: _buildPolygons()),
+              // GeoJSON polygon layer for protected areas
+              if (widget.geoJsonData != null)
+                PolygonLayer(polygons: _buildPolygons()),
 
-            // Pixel-wise overlay layer (simulated with gradient polygons)
-            if (widget.showOverlay && widget.geoJsonData != null)
-              PolygonLayer(polygons: _buildOverlayPolygons()),
+              // GEE Tile Layer for environmental data overlay
+              if (widget.showOverlay) _buildGeeTileLayer(),
 
-            // Area labels
-            if (widget.geoJsonData != null)
-              MarkerLayer(markers: _buildAreaLabels()),
-          ],
+              // Area labels
+              if (widget.geoJsonData != null)
+                MarkerLayer(markers: _buildAreaLabels()),
+
+              // Marker for tapped point (when loading or showing pixel info)
+              if (_tappedPoint != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _tappedPoint!,
+                      width: 40,
+                      height: 40,
+                      child: Icon(
+                        Icons.location_pin,
+                        color: Colors.red,
+                        size: 40,
+                        shadows: const [
+                          Shadow(color: Colors.black54, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
         ),
+
+        // Pixel Info Popup
+        if (_tappedPoint != null) _buildPixelInfoPopup(),
 
         // Map controls overlay
         Positioned(
@@ -103,6 +248,17 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
                   widget.mapController.move(egyptCenter, 6.0);
                 },
               ),
+              // Download button - only show when overlay is visible
+              if (widget.showOverlay) ...[
+                const SizedBox(height: 8),
+                _buildMapControl(
+                  icon: _isCapturing ? Icons.hourglass_empty : Icons.download,
+                  onPressed: _isCapturing
+                      ? null
+                      : () => _captureAndDownloadMap(),
+                  tooltip: 'Download Map Image',
+                ),
+              ],
             ],
           ),
         ),
@@ -165,25 +321,365 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
     );
   }
 
+  /// Build the pixel info popup widget
+  Widget _buildPixelInfoPopup() {
+    return Positioned(
+      bottom: 16,
+      left: 16,
+      right: 80, // Leave space for map controls
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E2C),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2A2A3C),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.pin_drop, color: Colors.orange, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Pixel Information',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                  // Close button
+                  InkWell(
+                    onTap: _closePixelInfo,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        color: Colors.red,
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            if (_isLoadingPixelInfo)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Fetching pixel data...',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_pixelInfo == null)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Error loading pixel data',
+                  style: TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              )
+            else if (!_pixelInfo!.success)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.amber, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _pixelInfo!.errorMessage ?? 'No data available',
+                            style: const TextStyle(
+                              color: Colors.amber,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Coordinates: ${_tappedPoint!.latitude.toStringAsFixed(4)}, ${_tappedPoint!.longitude.toStringAsFixed(4)}',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              _buildPixelInfoContent(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build the content of the pixel info popup
+  Widget _buildPixelInfoContent() {
+    final info = _pixelInfo!;
+    final metrics = info.metrics ?? {};
+
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Coordinates
+          Row(
+            children: [
+              Icon(Icons.location_on, color: Colors.blue.shade300, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                '${info.lat?.toStringAsFixed(5)}, ${info.lng?.toStringAsFixed(5)}',
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Interpretation section
+          if (info.interpretation != null) ...[
+            _buildInterpretationCard(info.interpretation!),
+            const SizedBox(height: 10),
+          ],
+
+          // Metrics Grid
+          Text(
+            'Index Values',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: metrics.entries.map((entry) {
+              return _buildMetricChip(
+                entry.key,
+                info.getMetricDisplay(entry.key),
+                entry.key == widget.selectedMetric,
+              );
+            }).toList(),
+          ),
+
+          // Metadata
+          if (info.metadata != null) ...[
+            const SizedBox(height: 10),
+            Divider(color: Colors.white24, height: 1),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.white38, size: 12),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${info.metadata!['imageCount']} images | ${info.metadata!['resolution']}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Build the interpretation card
+  Widget _buildInterpretationCard(Map<String, String> interpretation) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (interpretation['landCover'] != null)
+            _buildInterpretationRow(
+              Icons.landscape,
+              'Land Cover',
+              interpretation['landCover']!,
+              Colors.green,
+            ),
+          if (interpretation['vegetationHealth'] != null) ...[
+            const SizedBox(height: 6),
+            _buildInterpretationRow(
+              Icons.eco,
+              'Vegetation',
+              interpretation['vegetationHealth']!,
+              Colors.lightGreen,
+            ),
+          ],
+          if (interpretation['moistureStatus'] != null) ...[
+            const SizedBox(height: 6),
+            _buildInterpretationRow(
+              Icons.water_drop,
+              'Moisture',
+              interpretation['moistureStatus']!,
+              Colors.blue,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Build an interpretation row
+  Widget _buildInterpretationRow(
+    IconData icon,
+    String label,
+    String value,
+    Color color,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 14),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                value,
+                style: const TextStyle(color: Colors.white, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Build a metric chip widget
+  Widget _buildMetricChip(String key, String value, bool isSelected) {
+    final color = isSelected ? Colors.orange : Colors.white54;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? Colors.orange.withOpacity(0.15)
+            : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isSelected ? Colors.orange.withOpacity(0.5) : Colors.white24,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            key.toUpperCase(),
+            style: TextStyle(
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: isSelected ? Colors.orange : Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMapControl({
     required IconData icon,
-    required VoidCallback onPressed,
+    VoidCallback? onPressed,
+    String? tooltip,
   }) {
-    return Container(
+    final button = Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: onPressed == null ? Colors.grey.shade300 : Colors.white,
         borderRadius: BorderRadius.circular(4),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4),
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, size: 20),
+        icon: Icon(
+          icon,
+          size: 20,
+          color: onPressed == null ? Colors.grey : null,
+        ),
         onPressed: onPressed,
         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
         padding: EdgeInsets.zero,
       ),
     );
+
+    if (tooltip != null) {
+      return Tooltip(message: tooltip, child: button);
+    }
+    return button;
   }
 
   /// Build polygon layers from GeoJSON
@@ -195,11 +691,10 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
 
     for (int i = 0; i < features.length; i++) {
       final feature = features[i] as Map<String, dynamic>;
-      final properties = feature['properties'] as Map<String, dynamic>?;
-      final areaId = properties?['OBJECTID']?.toString() ?? (i + 1).toString();
-
+      // Use index for selection since OBJECTID may have duplicates
       final isSelected =
-          widget.selectedAreaId == 'all' || widget.selectedAreaId == areaId;
+          widget.selectedAreaId == 'all' ||
+          widget.selectedAreaId == i.toString();
 
       final featurePolygons = _parseGeometry(
         feature['geometry'] as Map<String, dynamic>,
@@ -213,34 +708,29 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
     return polygons;
   }
 
-  /// Build overlay polygons with metric-based coloring
-  List<Polygon> _buildOverlayPolygons() {
-    if (widget.geoJsonData == null || !widget.showOverlay) return [];
-
-    final features = widget.geoJsonData!['features'] as List;
-    final polygons = <Polygon>[];
-
-    for (int i = 0; i < features.length; i++) {
-      final feature = features[i] as Map<String, dynamic>;
-      final properties = feature['properties'] as Map<String, dynamic>?;
-      final areaId = properties?['OBJECTID']?.toString() ?? (i + 1).toString();
-
-      final isSelected =
-          widget.selectedAreaId == 'all' || widget.selectedAreaId == areaId;
-
-      if (!isSelected) continue;
-
-      // Generate simulated pixel-wise data for demo
-      // In production, this would come from GEE
-      final featurePolygons = _parseGeometryWithOverlay(
-        feature['geometry'] as Map<String, dynamic>,
-        areaIndex: i,
-      );
-
-      polygons.addAll(featurePolygons);
+  /// Build GEE Tile Layer for environmental data
+  Widget _buildGeeTileLayer() {
+    // Check if we have a valid GEE map response
+    if (widget.geeMapResponse == null ||
+        widget.geeMapResponse!.tileUrlTemplate.isEmpty) {
+      return const SizedBox.shrink();
     }
 
-    return polygons;
+    final response = widget.geeMapResponse!;
+
+    // GEE tiles from Python server already include auth
+    // Wrap in Opacity widget to allow base map to show through
+    return Opacity(
+      opacity: 0.75, // 75% opacity to let the base map show through
+      child: TileLayer(
+        urlTemplate: response.tileUrlTemplate,
+        userAgentPackageName: 'com.example.se_project',
+        maxZoom: 18,
+        errorTileCallback: (tile, error, stackTrace) {
+          print('GEE Tile error at ${tile.coordinates}: $error');
+        },
+      ),
+    );
   }
 
   List<Polygon> _parseGeometry(
@@ -285,159 +775,6 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
     }
 
     return polygons;
-  }
-
-  /// Parse geometry and create pixel-wise overlay with gradient colors
-  List<Polygon> _parseGeometryWithOverlay(
-    Map<String, dynamic> geometry, {
-    required int areaIndex,
-  }) {
-    final type = geometry['type'] as String;
-    final coordinates = geometry['coordinates'];
-    final polygons = <Polygon>[];
-
-    // Create a grid of smaller polygons to simulate pixel-wise data
-    if (type == 'Polygon') {
-      polygons.addAll(_createPixelGrid(coordinates[0], areaIndex));
-    } else if (type == 'MultiPolygon') {
-      for (var polygon in coordinates) {
-        polygons.addAll(_createPixelGrid(polygon[0], areaIndex));
-      }
-    }
-
-    return polygons;
-  }
-
-  /// Create a grid of colored cells to simulate pixel-wise visualization
-  List<Polygon> _createPixelGrid(List coordinates, int areaIndex) {
-    final polygons = <Polygon>[];
-    final points = _parsePolygonCoordinates(coordinates);
-
-    if (points.isEmpty) return polygons;
-
-    // Calculate bounding box
-    double minLat = points.first.latitude;
-    double maxLat = points.first.latitude;
-    double minLng = points.first.longitude;
-    double maxLng = points.first.longitude;
-
-    for (var point in points) {
-      if (point.latitude < minLat) minLat = point.latitude;
-      if (point.latitude > maxLat) maxLat = point.latitude;
-      if (point.longitude < minLng) minLng = point.longitude;
-      if (point.longitude > maxLng) maxLng = point.longitude;
-    }
-
-    // Create grid cells
-    // Adjust grid size based on area size for performance
-    final latRange = maxLat - minLat;
-    final lngRange = maxLng - minLng;
-
-    // Dynamic grid size based on area
-    int gridRows = math.min(20, math.max(5, (latRange * 10).round()));
-    int gridCols = math.min(20, math.max(5, (lngRange * 10).round()));
-
-    final cellHeight = latRange / gridRows;
-    final cellWidth = lngRange / gridCols;
-
-    // Random seed based on year, season, and area for consistent "data"
-    final seed =
-        widget.selectedYear * 1000 + widget.selectedSeason.hashCode + areaIndex;
-    final random = math.Random(seed);
-
-    for (int row = 0; row < gridRows; row++) {
-      for (int col = 0; col < gridCols; col++) {
-        final cellMinLat = minLat + row * cellHeight;
-        final cellMaxLat = minLat + (row + 1) * cellHeight;
-        final cellMinLng = minLng + col * cellWidth;
-        final cellMaxLng = minLng + (col + 1) * cellWidth;
-
-        // Cell center
-        final centerLat = (cellMinLat + cellMaxLat) / 2;
-        final centerLng = (cellMinLng + cellMaxLng) / 2;
-
-        // Check if cell center is inside the polygon
-        if (!_isPointInPolygon(LatLng(centerLat, centerLng), points)) {
-          continue;
-        }
-
-        // Generate simulated metric value
-        // This creates a gradient effect with some noise
-        final baseValue = _getBaseValueForMetric(widget.selectedMetric);
-        final latFactor = (row / gridRows);
-        final lngFactor = (col / gridCols);
-        final noise = (random.nextDouble() - 0.5) * 0.3;
-
-        // Create spatial pattern
-        double value =
-            baseValue + (latFactor * 0.3) + (lngFactor * 0.2) + noise;
-
-        // Clamp to valid range
-        value = value.clamp(-0.5, 1.0);
-
-        // Get color for this value
-        final colorInt = MetricColorMapper.getColorForValue(
-          value,
-          widget.selectedMetric,
-        );
-        final color = Color(colorInt).withOpacity(0.7);
-
-        // Create cell polygon
-        final cellPoints = [
-          LatLng(cellMinLat, cellMinLng),
-          LatLng(cellMinLat, cellMaxLng),
-          LatLng(cellMaxLat, cellMaxLng),
-          LatLng(cellMaxLat, cellMinLng),
-        ];
-
-        polygons.add(
-          Polygon(
-            points: cellPoints,
-            color: color,
-            borderColor: color,
-            borderStrokeWidth: 0.5,
-          ),
-        );
-      }
-    }
-
-    return polygons;
-  }
-
-  double _getBaseValueForMetric(String metric) {
-    switch (metric) {
-      case 'ndvi':
-        return 0.3 + (widget.selectedSeason == 'summer' ? 0.2 : 0.0);
-      case 'evi':
-        return 0.25 + (widget.selectedSeason == 'summer' ? 0.15 : 0.0);
-      case 'ndwi':
-        return -0.1 + (widget.selectedSeason == 'winter' ? 0.2 : 0.0);
-      case 'temp':
-        return 0.5 + (widget.selectedSeason == 'summer' ? 0.3 : -0.2);
-      default:
-        return 0.5;
-    }
-  }
-
-  /// Check if a point is inside a polygon using ray casting
-  bool _isPointInPolygon(LatLng point, List<LatLng> polygon) {
-    bool inside = false;
-    int j = polygon.length - 1;
-
-    for (int i = 0; i < polygon.length; i++) {
-      if ((polygon[i].longitude > point.longitude) !=
-              (polygon[j].longitude > point.longitude) &&
-          point.latitude <
-              (polygon[j].latitude - polygon[i].latitude) *
-                      (point.longitude - polygon[i].longitude) /
-                      (polygon[j].longitude - polygon[i].longitude) +
-                  polygon[i].latitude) {
-        inside = !inside;
-      }
-      j = i;
-    }
-
-    return inside;
   }
 
   List<LatLng> _parsePolygonCoordinates(List coordinates) {
@@ -570,10 +907,10 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
     for (int i = 0; i < features.length; i++) {
       final feature = features[i] as Map<String, dynamic>;
       final properties = feature['properties'] as Map<String, dynamic>?;
-      final areaId = properties?['OBJECTID']?.toString() ?? (i + 1).toString();
-
+      // Use index for selection since OBJECTID may have duplicates
       final isSelected =
-          widget.selectedAreaId == 'all' || widget.selectedAreaId == areaId;
+          widget.selectedAreaId == 'all' ||
+          widget.selectedAreaId == i.toString();
 
       if (!isSelected) continue;
 
@@ -589,10 +926,10 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
       markers.add(
         Marker(
           point: center,
-          width: 150,
-          height: 40,
+          width: 100,
+          height: 28,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.9),
               borderRadius: BorderRadius.circular(4),
@@ -602,9 +939,10 @@ class _PixelWiseMapWidgetState extends State<PixelWiseMapWidget> {
             ),
             child: Text(
               areaName.toString(),
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold),
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
         ),
