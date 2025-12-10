@@ -42,6 +42,14 @@ class NavBar extends StatelessWidget implements PreferredSizeWidget {
                 isActive: currentRoute == 'charts',
                 onTap: () => _navigate(context, 'charts'),
               ),
+
+              const SizedBox(width: 8),
+              _NavButton(
+                label: 'Pixel Wise Map',
+                routeName: 'pixelWise',
+                isActive: currentRoute == 'pixelWise',
+                onTap: () => _navigate(context, 'pixelWise'),
+              ),
             ],
           ),
         ),
