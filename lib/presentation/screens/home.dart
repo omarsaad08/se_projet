@@ -59,7 +59,7 @@ class _HomeState extends State<Home> {
   Map<int, double> _tempData = {};
   
   bool _isLoading = false;
-  bool _isLoadingNdvi = false;
+  final bool _isLoadingNdvi = false;
   bool _showNdviColors = false;
   String? _currentFeature; // Tracks which feature is currently displayed
   List<CustomPolygon> _customPolygons = [];
@@ -179,7 +179,7 @@ class _HomeState extends State<Home> {
         feature: feature,
       );
 
-      if (data != null && data is List) {
+      if (data != null) {
         setState(() {
           switch (feature) {
             case 'ndvi':

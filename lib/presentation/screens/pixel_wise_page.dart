@@ -9,7 +9,7 @@ import 'package:se_project/presentation/components/pixel_wise_map_widget.dart';
 import 'package:se_project/helpers/app_theme.dart';
 
 class PixelWisePage extends StatefulWidget {
-  const PixelWisePage({Key? key}) : super(key: key);
+  const PixelWisePage({super.key});
 
   @override
   State<PixelWisePage> createState() => _PixelWisePageState();
@@ -512,7 +512,7 @@ class _PixelWisePageState extends State<PixelWisePage> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
-                    value: selectedMetric,
+                    initialValue: selectedMetric,
                     isExpanded: true,
                     dropdownColor: AppTheme.darkBgTertiary,
                     decoration: InputDecoration(
@@ -558,7 +558,7 @@ class _PixelWisePageState extends State<PixelWisePage> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
-                    value: selectedAreaId,
+                    initialValue: selectedAreaId,
                     isExpanded: true,
                     dropdownColor: AppTheme.darkBgTertiary,
                     decoration: InputDecoration(
@@ -609,7 +609,7 @@ class _PixelWisePageState extends State<PixelWisePage> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
-                    value: selectedSeason,
+                    initialValue: selectedSeason,
                     isExpanded: true,
                     dropdownColor: AppTheme.darkBgTertiary,
                     decoration: InputDecoration(
@@ -655,7 +655,7 @@ class _PixelWisePageState extends State<PixelWisePage> {
                   ),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<int>(
-                    value: selectedYear,
+                    initialValue: selectedYear,
                     isExpanded: true,
                     dropdownColor: AppTheme.darkBgTertiary,
                     decoration: InputDecoration(

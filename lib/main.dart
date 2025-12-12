@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'dart:async';
-
 import 'package:se_project/appRouter.dart';
 import 'package:se_project/helpers/app_theme.dart';
 

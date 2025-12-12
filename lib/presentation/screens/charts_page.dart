@@ -4,7 +4,7 @@ import 'package:se_project/presentation/components/time_series_chart.dart';
 import 'package:intl/intl.dart';
 
 class ChartsPage extends StatefulWidget {
-  const ChartsPage({Key? key}) : super(key: key);
+  const ChartsPage({super.key});
 
   @override
   State<ChartsPage> createState() => _ChartsPageState();

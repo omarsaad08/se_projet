@@ -10,12 +10,12 @@ class NdviServices {
   static Future<List<dynamic>?> getAverageNdvi(
     int year,
     String season,
-    int area_id, {
+    int areaId, {
     String feature = 'ndvi',
   }) async {
     try {
       print(
-        "area_id: $area_id, season: $season, year: $year, feature: $feature",
+        "area_id: $areaId, season: $season, year: $year, feature: $feature",
       );
 
       // Determine if this is a prediction or historical data

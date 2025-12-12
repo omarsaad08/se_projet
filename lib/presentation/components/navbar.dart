@@ -82,8 +82,8 @@ class _NavButton extends StatelessWidget {
 
     return TextButton(
       onPressed: onTap,
-      child: Text(label, style: style),
       style: TextButton.styleFrom(foregroundColor: Colors.white),
+      child: Text(label, style: style),
     );
   }
 }

@@ -22,7 +22,7 @@ class PixelWiseMapWidget extends StatefulWidget {
   final GeeMapResponse? geeMapResponse;
 
   const PixelWiseMapWidget({
-    Key? key,
+    super.key,
     required this.mapController,
     required this.geoJsonData,
     required this.selectedAreaId,
@@ -32,7 +32,7 @@ class PixelWiseMapWidget extends StatefulWidget {
     required this.showOverlay,
     required this.availableAreas,
     this.geeMapResponse,
-  }) : super(key: key);
+  });
 
   @override
   State<PixelWiseMapWidget> createState() => _PixelWiseMapWidgetState();

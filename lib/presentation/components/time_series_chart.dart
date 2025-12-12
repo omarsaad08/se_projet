@@ -205,7 +205,7 @@ class TimeSeriesLineChart extends StatelessWidget {
                       interval: _getValueInterval(maxY - minY),
                       getTitlesWidget: (value, meta) {
                         return Text(
-                          '${value.toStringAsFixed(1)}',
+                          value.toStringAsFixed(1),
                           style: const TextStyle(fontSize: 10),
                         );
                       },
@@ -288,10 +288,10 @@ class AverageTimeSeriesChart extends StatelessWidget {
   final String metric;
 
   const AverageTimeSeriesChart({
-    Key? key,
+    super.key,
     required this.data,
     required this.metric,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -367,7 +367,7 @@ class AverageTimeSeriesChart extends StatelessWidget {
                 interval: _getValueInterval(maxY - minY),
                 getTitlesWidget: (value, meta) {
                   return Text(
-                    '${value.toStringAsFixed(1)}',
+                    value.toStringAsFixed(1),
                     style: const TextStyle(fontSize: 10),
                   );
                 },
